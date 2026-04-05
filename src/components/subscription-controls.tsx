@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 
+import { eventProcessor } from "@/lib/events/event-processor";
+import { metricsEngine } from "@/lib/metrics/metrics-engine";
 import { relayManager } from "@/lib/relay/relay-manager";
 import type { Kind1SubscriptionFilter } from "@/lib/events/types";
-import { useEventStore } from "@/store/event-store";
-import { useMetricsStore } from "@/store/metrics-store";
 
 const parseAuthors = (raw: string) =>
   raw
@@ -18,9 +18,6 @@ export function SubscriptionControls() {
   const [sinceMinutesInput, setSinceMinutesInput] = useState("60");
   const [untilMinutesInput, setUntilMinutesInput] = useState("");
 
-  const pushEvent = useEventStore((state) => state.pushEvent);
-  const recordEvent = useMetricsStore((state) => state.recordEvent);
-
   const applyFilters = () => {
     const now = Math.floor(Date.now() / 1000);
     const sinceMinutes = Number(sinceMinutesInput);
@@ -32,8 +29,8 @@ export function SubscriptionControls() {
     };
 
     relayManager.subscribeKind1(activeFilter, ({ relayUrl, event, firstEventLatencyMs, receivedAt }) => {
-      recordEvent(relayUrl, firstEventLatencyMs);
-      pushEvent({
+      metricsEngine.recordRelayEvent(relayUrl, firstEventLatencyMs);
+      eventProcessor.ingest({
         relayUrl,
         event,
         firstEventLatencyMs,

@@ -2,36 +2,36 @@
 
 import { useEffect } from "react";
 
+import { eventProcessor } from "@/lib/events/event-processor";
+import { metricsEngine } from "@/lib/metrics/metrics-engine";
 import { DEFAULT_RELAYS } from "@/lib/relay/types";
 import { relayManager } from "@/lib/relay/relay-manager";
-import { useEventStore } from "@/store/event-store";
-import { useMetricsStore } from "@/store/metrics-store";
 
 export function RelayConnectionController() {
-  const pushEvent = useEventStore((state) => state.pushEvent);
-  const recordEvent = useMetricsStore((state) => state.recordEvent);
-
   useEffect(() => {
     relayManager.connectAll(DEFAULT_RELAYS);
-    relayManager.subscribeKind1({
+
+    const initialFilter = {
       since: Math.floor(Date.now() / 1000) - 60 * 60,
+    };
+
+    relayManager.subscribeKind1({
+      ...initialFilter,
     }, ({ relayUrl, event, firstEventLatencyMs, receivedAt }) => {
-      recordEvent(relayUrl, firstEventLatencyMs);
-      pushEvent({
+      metricsEngine.recordRelayEvent(relayUrl, firstEventLatencyMs);
+      eventProcessor.ingest({
         relayUrl,
         event,
         firstEventLatencyMs,
         receivedAt,
-        filter: {
-          since: Math.floor(Date.now() / 1000) - 60 * 60,
-        },
+        filter: initialFilter,
       });
     });
 
     return () => {
       relayManager.destroy();
     };
-  }, [pushEvent, recordEvent]);
+  }, []);
 
   return null;
 }

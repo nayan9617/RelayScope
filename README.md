@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RelayScope
 
-## Getting Started
+RelayScope is a developer-focused Nostr relay monitoring and debugging dashboard built with Next.js, TypeScript, Zustand, Recharts, Dexie, and nostr-tools.
 
-First, run the development server:
+## Current Feature Set
+
+- Multi-relay connection manager
+- Automatic reconnection with exponential backoff
+- Global relay state tracking (connected, disconnected, retrying)
+- Kind 1 event subscriptions with filters:
+  - authors
+  - since/until time windows
+- Real-time metrics:
+  - events received per relay
+  - first-event latency
+  - rolling throughput (events/sec)
+  - success/failure counters
+- Event deduplication across relays:
+  - duplicate rate
+  - duplicate-heavy relay detection
+- Relay health score:
+  - success rate weight
+  - latency weight
+  - uptime weight
+- Debug tooling:
+  - raw JSON event stream
+  - source relay and timestamps
+  - applied filter visibility
+  - relay error logs
+- IndexedDB persistence with Dexie:
+  - metrics snapshots
+  - event snapshots
+  - relay logs
+
+## Architecture
+
+- `RelayManager` (`src/lib/relay/relay-manager.ts`)
+  - relay lifecycle, reconnection, and subscriptions
+- `MetricsEngine` (`src/lib/metrics/metrics-engine.ts`)
+  - real-time metrics updates
+- `EventProcessor` (`src/lib/events/event-processor.ts`)
+  - event ingestion and dedup pipeline
+- `StorageService` (`src/lib/storage/storage-service.ts`)
+  - IndexedDB persistence and hydration
+- Zustand stores (`src/store/*`)
+  - relay, metrics, and event state containers
+
+## Tech Stack
+
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- Zustand
+- nostr-tools
+- Recharts
+- Dexie.js
+
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Production Check
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run build
+```
 
-## Learn More
+Note: Recharts may log width/height warnings during static prerender in build output. The runtime dashboard renders correctly in the browser.
 
-To learn more about Next.js, take a look at the following resources:
+## Default Relays
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Configured in `src/lib/relay/types.ts`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `wss://relay.damus.io`
+- `wss://nos.lol`
+- `wss://relay.primal.net`
+- `wss://offchain.pub`
+- `wss://purplepag.es`
+- `wss://relay.nostr.band`
 
-## Deploy on Vercel
+## Planned Enhancements
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Smart relay recommendation
+- Auto failover routing
+- JSON/CSV export
+- Network interruption simulator
