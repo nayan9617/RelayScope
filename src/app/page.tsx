@@ -1,6 +1,9 @@
 import { DebugConsole } from "@/components/debug-console";
+import { EventStreamViewer } from "@/components/event-stream-viewer";
+import { MetricsSummary } from "@/components/metrics-summary";
 import { RelayConnectionController } from "@/components/relay-connection-controller";
 import { RelayOverview } from "@/components/relay-overview";
+import { SubscriptionControls } from "@/components/subscription-controls";
 
 export default function Home() {
   return (
@@ -22,6 +25,13 @@ export default function Home() {
         <div className="grid gap-6 lg:grid-cols-[1.8fr_1fr]">
           <RelayOverview />
           <DebugConsole />
+        </div>
+
+        <SubscriptionControls />
+
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_1.8fr]">
+          <MetricsSummary />
+          <EventStreamViewer />
         </div>
       </main>
     </div>

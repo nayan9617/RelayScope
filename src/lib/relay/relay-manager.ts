@@ -1,7 +1,11 @@
 import { Relay } from "nostr-tools/relay";
+import type { Filter } from "nostr-tools/filter";
+import type { NostrEvent } from "nostr-tools/core";
+import type { Subscription } from "nostr-tools/relay";
 
 import { useRelayStore } from "@/store/relay-store";
 import type { RelayConnectionState, RelayErrorLog, RelayErrorType } from "@/lib/relay/types";
+import type { Kind1SubscriptionFilter } from "@/lib/events/types";
 
 const BASE_RETRY_MS = 1_000;
 const MAX_RETRY_MS = 30_000;
@@ -28,8 +32,20 @@ const classifyErrorType = (error: unknown): RelayErrorType => {
 export class RelayManager {
   private relays = new Map<string, Relay>();
   private retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private subscriptions = new Map<string, Subscription>();
   private uptimeTicker: ReturnType<typeof setInterval> | null = null;
   private destroyed = false;
+  private activeFilter: Kind1SubscriptionFilter = {};
+  private subscriptionStartedAtByRelay = new Map<string, number>();
+  private firstEventSeenByRelay = new Set<string>();
+  private onEventCallback:
+    | ((payload: {
+        relayUrl: string;
+        event: NostrEvent;
+        firstEventLatencyMs: number | null;
+        receivedAt: number;
+      }) => void)
+    | null = null;
 
   public connectAll(urls: string[]) {
     const store = useRelayStore.getState();
@@ -60,12 +76,77 @@ export class RelayManager {
       this.uptimeTicker = null;
     }
 
+    this.subscriptions.forEach((sub) => sub.close("relay manager destroyed"));
+    this.subscriptions.clear();
     this.relays.forEach((relay) => relay.close());
     this.relays.clear();
   }
 
   public getRelay(url: string): Relay | undefined {
     return this.relays.get(url);
+  }
+
+  public subscribeKind1(
+    filter: Kind1SubscriptionFilter,
+    onEvent: (payload: {
+      relayUrl: string;
+      event: NostrEvent;
+      firstEventLatencyMs: number | null;
+      receivedAt: number;
+    }) => void,
+  ) {
+    this.activeFilter = filter;
+    this.onEventCallback = onEvent;
+    this.firstEventSeenByRelay.clear();
+
+    this.subscriptions.forEach((sub) => sub.close("replaced by a new subscription"));
+    this.subscriptions.clear();
+    this.subscriptionStartedAtByRelay.clear();
+
+    this.relays.forEach((relay, relayUrl) => {
+      this.attachRelaySubscription(relayUrl, relay);
+    });
+  }
+
+  private toNostrFilter(filter: Kind1SubscriptionFilter): Filter {
+    return {
+      kinds: [1],
+      authors: filter.authors,
+      since: filter.since,
+      until: filter.until,
+    };
+  }
+
+  private attachRelaySubscription(relayUrl: string, relay: Relay) {
+    if (!this.onEventCallback) {
+      return;
+    }
+
+    const nostrFilter = this.toNostrFilter(this.activeFilter);
+    const startedAt = Date.now();
+    this.subscriptionStartedAtByRelay.set(relayUrl, startedAt);
+
+    const sub = relay.subscribe([nostrFilter], {
+      onevent: (event) => {
+        const isFirstEvent = !this.firstEventSeenByRelay.has(relayUrl);
+        const firstEventLatencyMs = isFirstEvent
+          ? Date.now() - (this.subscriptionStartedAtByRelay.get(relayUrl) ?? Date.now())
+          : null;
+
+        if (isFirstEvent) {
+          this.firstEventSeenByRelay.add(relayUrl);
+        }
+
+        this.onEventCallback?.({
+          relayUrl,
+          event,
+          firstEventLatencyMs,
+          receivedAt: Date.now(),
+        });
+      },
+    });
+
+    this.subscriptions.set(relayUrl, sub);
   }
 
   private async connectRelay(url: string) {
@@ -82,6 +163,10 @@ export class RelayManager {
       });
 
       relay.onclose = () => {
+        this.subscriptions.get(url)?.close("relay closed");
+        this.subscriptions.delete(url);
+        this.relays.delete(url);
+
         const error: RelayErrorLog = {
           relayUrl: url,
           message: "Relay closed connection",
@@ -106,6 +191,10 @@ export class RelayManager {
 
       this.relays.set(url, relay);
       store.markConnected(url);
+
+      if (this.onEventCallback) {
+        this.attachRelaySubscription(url, relay);
+      }
     } catch (error) {
       const typedError: RelayErrorLog = {
         relayUrl: url,
