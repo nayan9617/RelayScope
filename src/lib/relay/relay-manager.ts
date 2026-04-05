@@ -38,6 +38,7 @@ export class RelayManager {
   private activeFilter: Kind1SubscriptionFilter = {};
   private subscriptionStartedAtByRelay = new Map<string, number>();
   private firstEventSeenByRelay = new Set<string>();
+  private subscriptionRelayScope: Set<string> | null = null;
   private onEventCallback:
     | ((payload: {
         relayUrl: string;
@@ -94,18 +95,22 @@ export class RelayManager {
       firstEventLatencyMs: number | null;
       receivedAt: number;
     }) => void,
+    relayScope?: string[],
   ) {
     this.activeFilter = filter;
     this.onEventCallback = onEvent;
+    this.subscriptionRelayScope = relayScope && relayScope.length > 0 ? new Set(relayScope) : null;
     this.firstEventSeenByRelay.clear();
 
-    this.subscriptions.forEach((sub) => sub.close("replaced by a new subscription"));
-    this.subscriptions.clear();
-    this.subscriptionStartedAtByRelay.clear();
+    this.restartSubscriptions();
+  }
 
-    this.relays.forEach((relay, relayUrl) => {
-      this.attachRelaySubscription(relayUrl, relay);
-    });
+  public setSubscriptionRelayScope(relayScope?: string[]) {
+    this.subscriptionRelayScope = relayScope && relayScope.length > 0 ? new Set(relayScope) : null;
+
+    if (this.onEventCallback) {
+      this.restartSubscriptions();
+    }
   }
 
   private toNostrFilter(filter: Kind1SubscriptionFilter): Filter {
@@ -118,7 +123,7 @@ export class RelayManager {
   }
 
   private attachRelaySubscription(relayUrl: string, relay: Relay) {
-    if (!this.onEventCallback) {
+    if (!this.onEventCallback || !this.shouldSubscribeRelay(relayUrl)) {
       return;
     }
 
@@ -147,6 +152,25 @@ export class RelayManager {
     });
 
     this.subscriptions.set(relayUrl, sub);
+  }
+
+  private shouldSubscribeRelay(relayUrl: string) {
+    if (!this.subscriptionRelayScope) {
+      return true;
+    }
+
+    return this.subscriptionRelayScope.has(relayUrl);
+  }
+
+  private restartSubscriptions() {
+    this.subscriptions.forEach((sub) => sub.close("replaced by a new subscription"));
+    this.subscriptions.clear();
+    this.subscriptionStartedAtByRelay.clear();
+    this.firstEventSeenByRelay.clear();
+
+    this.relays.forEach((relay, relayUrl) => {
+      this.attachRelaySubscription(relayUrl, relay);
+    });
   }
 
   private async connectRelay(url: string) {

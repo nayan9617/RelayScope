@@ -6,6 +6,7 @@ import { MetricsDashboard } from "@/components/metrics-dashboard";
 import { MetricsSummary } from "@/components/metrics-summary";
 import { PersistenceController } from "@/components/persistence-controller";
 import { RelayConnectionController } from "@/components/relay-connection-controller";
+import { RelayRecommendationPanel } from "@/components/relay-recommendation-panel";
 import { RelayOverview } from "@/components/relay-overview";
 import { SubscriptionControls } from "@/components/subscription-controls";
 
@@ -38,6 +39,8 @@ export default function Home() {
         </div>
 
         <SubscriptionControls />
+
+        <RelayRecommendationPanel />
 
         <div className="grid gap-6 lg:grid-cols-[1.2fr_1.8fr]">
           <MetricsSummary />
