@@ -1,5 +1,7 @@
 import { DebugConsole } from "@/components/debug-console";
 import { EventStreamViewer } from "@/components/event-stream-viewer";
+import { ExportControls } from "@/components/export-controls";
+import { FailureRateDetector } from "@/components/failure-rate-detector";
 import { MetricsDashboard } from "@/components/metrics-dashboard";
 import { MetricsSummary } from "@/components/metrics-summary";
 import { PersistenceController } from "@/components/persistence-controller";
@@ -28,6 +30,11 @@ export default function Home() {
         <div className="grid gap-6 lg:grid-cols-[1.8fr_1fr]">
           <RelayOverview />
           <DebugConsole />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+          <FailureRateDetector />
+          <ExportControls />
         </div>
 
         <SubscriptionControls />
