@@ -8,11 +8,14 @@ type RelayMetrics = {
   throughputEps: number;
   latencySamples: number;
   recentEventTimestamps: number[];
+  latencyHistory: Array<{ timestamp: number; latencyMs: number }>;
+  throughputHistory: Array<{ timestamp: number; throughputEps: number }>;
 };
 
 type MetricsStoreState = {
   byRelay: Record<string, RelayMetrics>;
   recordEvent: (relayUrl: string, firstEventLatencyMs: number | null) => void;
+  hydrateFromSnapshot: (snapshot: Record<string, RelayMetrics>) => void;
 };
 
 const createInitialMetrics = (relayUrl: string): RelayMetrics => ({
@@ -23,6 +26,8 @@ const createInitialMetrics = (relayUrl: string): RelayMetrics => ({
   throughputEps: 0,
   latencySamples: 0,
   recentEventTimestamps: [],
+  latencyHistory: [],
+  throughputHistory: [],
 });
 
 export const useMetricsStore = create<MetricsStoreState>((set, get) => ({
@@ -36,11 +41,19 @@ export const useMetricsStore = create<MetricsStoreState>((set, get) => ({
     );
 
     const eventCount = current.eventsReceived + 1;
+    const throughputEps = Number((recentEventTimestamps.length / 10).toFixed(2));
     const latencySamples = firstEventLatencyMs === null ? current.latencySamples : current.latencySamples + 1;
     const averageLatencyMs =
       firstEventLatencyMs === null
         ? current.averageLatencyMs
         : (current.averageLatencyMs * current.latencySamples + firstEventLatencyMs) / latencySamples;
+
+    const latencyHistory =
+      firstEventLatencyMs === null
+        ? current.latencyHistory
+        : [...current.latencyHistory, { timestamp: now, latencyMs: firstEventLatencyMs }].slice(-120);
+
+    const throughputHistory = [...current.throughputHistory, { timestamp: now, throughputEps }].slice(-120);
 
     set((state) => ({
       byRelay: {
@@ -52,9 +65,16 @@ export const useMetricsStore = create<MetricsStoreState>((set, get) => ({
           lastLatencyMs: firstEventLatencyMs,
           latencySamples,
           recentEventTimestamps,
-          throughputEps: Number((recentEventTimestamps.length / 10).toFixed(2)),
+          throughputEps,
+          latencyHistory,
+          throughputHistory,
         },
       },
     }));
   },
+  hydrateFromSnapshot: (snapshot) => {
+    set({ byRelay: snapshot });
+  },
 }));
+
+export type { RelayMetrics };

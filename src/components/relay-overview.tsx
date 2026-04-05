@@ -2,7 +2,9 @@
 
 import { useMemo } from "react";
 
+import { computeRelayHealthScore } from "@/lib/metrics/health-score";
 import { useRelayStore } from "@/store/relay-store";
+import { useMetricsStore } from "@/store/metrics-store";
 
 const statusClasses: Record<string, string> = {
   connected: "bg-emerald-400",
@@ -29,6 +31,7 @@ const formatSuccessRate = (successCount: number, failureCount: number) => {
 
 export function RelayOverview() {
   const relays = useRelayStore((state) => state.relays);
+  const metricsByRelay = useMetricsStore((state) => state.byRelay);
 
   const relayList = useMemo(
     () => Object.values(relays).sort((a, b) => a.url.localeCompare(b.url)),
@@ -45,10 +48,23 @@ export function RelayOverview() {
       </header>
 
       <div className="space-y-3">
-        {relayList.map((relay) => (
+        {relayList.map((relay) => {
+          const relayMetric = metricsByRelay[relay.url];
+          const successRate =
+            relay.successCount + relay.failureCount > 0
+              ? relay.successCount / (relay.successCount + relay.failureCount)
+              : 0;
+          const uptimeRatio = relay.uptimeMs / (relay.uptimeMs + relay.failureCount * 60_000 + 1);
+          const score = computeRelayHealthScore({
+            successRate,
+            averageLatencyMs: relayMetric?.averageLatencyMs ?? 0,
+            uptimeRatio: Math.max(0, Math.min(uptimeRatio, 1)),
+          });
+
+          return (
           <article
             key={relay.url}
-            className="grid grid-cols-[1.2fr_repeat(4,minmax(0,1fr))] items-center gap-3 rounded-xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm"
+            className="grid grid-cols-[1.2fr_repeat(5,minmax(0,1fr))] items-center gap-3 rounded-xl border border-white/10 bg-slate-900/80 px-4 py-3 text-sm"
           >
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -81,8 +97,16 @@ export function RelayOverview() {
                 {formatUptime(relay.uptimeMs)} / {formatSuccessRate(relay.successCount, relay.failureCount)}
               </p>
             </div>
+
+            <div>
+              <p className="text-xs text-slate-400">Latency / Score</p>
+              <p className="font-semibold text-sky-200">
+                {Math.round(relayMetric?.averageLatencyMs ?? 0)}ms / {score}
+              </p>
+            </div>
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
